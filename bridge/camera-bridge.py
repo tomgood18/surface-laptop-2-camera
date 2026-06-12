@@ -49,6 +49,19 @@ def find_cio2_video_node():
           return line.split()[-1]
   raise RuntimeError('Could not find ipu3-cio2 1 video node')
 
+def find_ov9734_subdev():
+    import glob
+    for subdev in sorted(glob.glob('/dev/v4l-subdev*')):
+        try:
+            out = subprocess.check_output(
+                ['v4l2-ctl', '-d', subdev, '--list-ctrls'],
+                text=True, stderr=subprocess.DEVNULL
+            )
+            if 'analogue_gain' in out and 'digital_gain' in out:
+                return subdev
+        except subprocess.CalledProcessError:
+            continue
+    raise RuntimeError('Could not find ov9734 subdev with analogue_gain and digital_gain controls')
 
 def setup_media_pipeline():
   cmds = [
@@ -60,7 +73,7 @@ def setup_media_pipeline():
        '"ipu3-csi2 1":0[fmt:SGRBG10_1X10/1296x734]'],
       ['media-ctl', '-d', '/dev/media0', '--set-v4l2',
        '"ipu3-csi2 1":1[fmt:SGRBG10_1X10/1296x734]'],
-      ['v4l2-ctl', '-d', '/dev/v4l-subdev7',
+      ['v4l2-ctl', '-d', find_ov9734_subdev(),
        '--set-ctrl=analogue_gain=80,digital_gain=400'],
   ]
   for cmd in cmds:
@@ -234,6 +247,7 @@ def main():
   stream_props = Gst.Structure.new_from_string(
       'props,'
       'media.class=(string)Video/Source,'
+      'media.role=(string)Camera,'
       'node.name=(string)ov9734-webcam,'
       'node.description=(string)"Surface Laptop 2 Webcam"'
   )

@@ -77,7 +77,7 @@ sensor only starts capturing when an application actually connects; it stops
 ```bash
 git clone https://github.com/YOUR_USERNAME/surface-laptop-2-camera.git
 cd surface-laptop-2-camera
-sudo ./install.sh
+sudo ./install.sh   # Or ./install-arch.sh for Arch users
 ```
 
 Then **reboot**.
@@ -145,6 +145,11 @@ print(f'{len(links)} PipeWire links active')
 for l in links: print(' ', l.get('info',{}).get('output-node-id'), '->', l.get('info',{}).get('input-node-id'))
 "
 ```
+
+### Firefox can't detect the camera
+
+Firefox may not have pipewire cameras enabled by default. Navigate to `about:config`,
+and set `media.webrtc.camera.allow-pipewire` to `true`. Then restart firefox.
 
 ### Green / colour-shifted image
 
