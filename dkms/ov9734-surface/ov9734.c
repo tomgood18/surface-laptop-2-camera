@@ -840,7 +840,7 @@ static int ov9734_check_hwcfg(struct device *dev)
 
 	ep = fwnode_graph_get_next_endpoint(fwnode, NULL);
 	if (!ep)
-		return -ENXIO;
+		return -EPROBE_DEFER; /* ipu_bridge hasn't populated the graph yet */
 
 	ret = v4l2_fwnode_endpoint_alloc_parse(ep, &bus_cfg);
 	fwnode_handle_put(ep);
@@ -967,11 +967,11 @@ static int ov9734_probe(struct i2c_client *client)
 		ov9734->reset_gpio = NULL;
 	}
 
+	v4l2_i2c_subdev_init(&ov9734->sd, client, &ov9734_subdev_ops);
+
 	ret = ov9734_power_on(ov9734->dev);
 	if (ret)
 		return dev_err_probe(ov9734->dev, ret, "failed to power on\n");
-
-	v4l2_i2c_subdev_init(&ov9734->sd, client, &ov9734_subdev_ops);
 	ret = ov9734_identify_module(ov9734);
 	if (ret) {
 		dev_err(ov9734->dev, "failed to find sensor: %d", ret);
@@ -999,11 +999,16 @@ static int ov9734_probe(struct i2c_client *client)
 
 	/*
 	 * Device is already turned on by i2c-core with ACPI domain PM.
-	 * Enable runtime PM and turn off the device.
+	 * Enable runtime PM. Use get_noresume + put_autosuspend to correctly
+	 * balance the refcount — a bare pm_runtime_put underflows when ACPI
+	 * has already decremented the counter on its own.
 	 */
 	pm_runtime_set_active(ov9734->dev);
+	pm_runtime_set_autosuspend_delay(ov9734->dev, 1000);
+	pm_runtime_use_autosuspend(ov9734->dev);
 	pm_runtime_enable(ov9734->dev);
-	pm_runtime_put(ov9734->dev);  /* sensor powered on for probe; allow PM to suspend */
+	pm_runtime_get_noresume(ov9734->dev);
+	pm_runtime_put_autosuspend(ov9734->dev);
 
 	ret = v4l2_async_register_subdev_sensor(&ov9734->sd);
 	if (ret < 0) {
